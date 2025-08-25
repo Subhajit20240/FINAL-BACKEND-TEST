@@ -1,118 +1,95 @@
-import user from '../models/user.js';
+// Import required modules
+import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import cloudinary from '../config/cloudinary.js';
 import { sendVerificationEmail } from './emailController.js';
 
+// Generate random verification code
 const generateVerificationCode = () => {
   return Math.random().toString(36).substring(2, 15) + 
          Math.random().toString(36).substring(2, 15);
 };
 
+// Register new user
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
+    // Validate input
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'All fields required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password too short' });
+    }
+    
+    // Check if user exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User already exists with this email' 
-      });
+      return res.status(400).json({ error: 'Email already registered' });
     }
 
-
+    // Upload profile image if provided
     let profileImageUrl = '';
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path);
       profileImageUrl = result.secure_url;
     }
 
+    // Create new user
     const verificationCode = generateVerificationCode();
+    const newUser = new User({ name, email, password, profileImage: profileImageUrl, verificationCode });
+    await newUser.save();
 
-    const user = new User({
-      name,
-      email,
-      password,
-      profileImage: profileImageUrl,
-      verificationCode
-    });
-
-    await user.save();
-
+    // Send verification email
     await sendVerificationEmail(email, verificationCode);
 
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully. Please check your email for verification.'
-    });
+    res.status(201).json({ message: 'User registered. Check email for verification.' });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error during registration' 
-    });
+    res.status(500).json({ error: 'Registration failed' });
   }
 };
 
+// Verify email
 export const verifyEmail = async (req, res) => {
   try {
     const { code } = req.params;
     
     const user = await User.findOne({ verificationCode: code });
-    
     if (!user) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid verification code' 
-      });
+      return res.status(400).json({ error: 'Invalid verification code' });
     }
 
     user.isVerified = true;
     user.verificationCode = '';
     await user.save();
 
-    res.status(200).json({
-      success: true,
-      message: 'Email verified successfully. You can now login.'
-    });
+    res.status(200).json({ message: 'Email verified successfully' });
   } catch (error) {
-    console.error('Verification error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error during verification' 
-    });
+    res.status(500).json({ error: 'Verification failed' });
   }
 };
 
+// Login user
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid email or password' 
-      });
+      return res.status(400).json({ error: 'Invalid credentials' });
     }
 
     if (!user.isVerified) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Please verify your email before logging in' 
-      });
+      return res.status(400).json({ error: 'Please verify your email' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid email or password' 
-      });
+      return res.status(400).json({ error: 'Invalid credentials' });
     }
 
     res.status(200).json({
-      success: true,
       message: 'Login successful',
       user: {
         id: user._id,
@@ -122,10 +99,6 @@ export const login = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error during login' 
-    });
+    res.status(500).json({ error: 'Login failed' });
   }
 };
