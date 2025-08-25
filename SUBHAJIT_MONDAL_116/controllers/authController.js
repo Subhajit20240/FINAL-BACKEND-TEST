@@ -1,21 +1,19 @@
-// Import required modules
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import cloudinary from '../config/cloudinary.js';
 import { sendVerificationEmail } from './emailController.js';
 
-// Generate random verification code
 const generateVerificationCode = () => {
   return Math.random().toString(36).substring(2, 15) + 
          Math.random().toString(36).substring(2, 15);
 };
 
-// Register new user
+
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Validate input
+ 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'All fields required' });
     }
@@ -23,25 +21,22 @@ export const register = async (req, res) => {
       return res.status(400).json({ error: 'Password too short' });
     }
     
-    // Check if user exists
+    
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    // Upload profile image if provided
+
     let profileImageUrl = '';
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path);
       profileImageUrl = result.secure_url;
     }
-
-    // Create new user
     const verificationCode = generateVerificationCode();
     const newUser = new User({ name, email, password, profileImage: profileImageUrl, verificationCode });
     await newUser.save();
 
-    // Send verification email
     await sendVerificationEmail(email, verificationCode);
 
     res.status(201).json({ message: 'User registered. Check email for verification.' });
@@ -50,7 +45,7 @@ export const register = async (req, res) => {
   }
 };
 
-// Verify email
+
 export const verifyEmail = async (req, res) => {
   try {
     const { code } = req.params;
@@ -70,7 +65,6 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
-// Login user
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
