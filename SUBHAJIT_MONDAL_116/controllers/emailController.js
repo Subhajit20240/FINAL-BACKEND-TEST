@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer';
 
 const sendVerificationEmail = async (email, verificationCode) => {
   try {
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.EMAIL_USER,
@@ -10,7 +10,8 @@ const sendVerificationEmail = async (email, verificationCode) => {
       }
     });
 
-    const verificationUrl = `http://localhost:${process.env.PORT}/api/verify/${verificationCode}`;
+    const baseUrl = process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+    const verificationUrl = `${baseUrl}/api/verify/${verificationCode}`;
 
     const mailOptions = {
       from: process.env.EMAIL_USER,

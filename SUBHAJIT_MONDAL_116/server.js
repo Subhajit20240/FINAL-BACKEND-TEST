@@ -3,6 +3,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import authRoutes from './routes/auth.js';
 import { fileURLToPath } from 'url';
+import upload from './middleware/upload.js';
 import path from 'path';
 
 const __filename = fileURLToPath(import.meta.url);

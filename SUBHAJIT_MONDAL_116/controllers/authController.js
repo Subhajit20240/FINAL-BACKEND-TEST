@@ -13,6 +13,20 @@ const generateVerificationCode = () => {
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+
+    // Basic validation
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email and password are required'
+      });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
     
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -26,15 +40,21 @@ export const register = async (req, res) => {
     // Upload image to Cloudinary if provided
     let profileImageUrl = '';
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path);
-      profileImageUrl = result.secure_url;
+      try {
+        const result = await cloudinary.uploader.upload(req.file.path);
+        profileImageUrl = result.secure_url;
+      } catch (uploadErr) {
+        console.error('Cloudinary upload failed:', uploadErr);
+        // Continue without image rather than failing registration
+        profileImageUrl = '';
+      }
     }
 
     // Generate verification code
     const verificationCode = generateVerificationCode();
 
     // Create new user
-    const user = new User({
+    const newUser = new User({
       name,
       email,
       password,
@@ -42,10 +62,15 @@ export const register = async (req, res) => {
       verificationCode
     });
 
-    await user.save();
+    await newUser.save();
 
     // Send verification email
-    await sendVerificationEmail(email, verificationCode);
+    try {
+      await sendVerificationEmail(email, verificationCode);
+    } catch (mailErr) {
+      console.error('Email send failed:', mailErr);
+      // Do not block registration if email fails; user can request a new code later (not implemented)
+    }
 
     res.status(201).json({
       success: true,
@@ -53,9 +78,16 @@ export const register = async (req, res) => {
     });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error during registration' 
+    // Handle duplicate key error from MongoDB
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email'
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: 'Server error during registration',
     });
   }
 };
